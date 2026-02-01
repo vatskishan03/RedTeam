@@ -34,35 +34,47 @@ def run_reattack(
         if hints:
             code_context = f"{code_context}\n\n{hints}"
 
-    findings: List[Finding] = []
+    # Always run lightweight heuristics as a backstop (especially for JS sinks).
+    payload = []
+    counter = 1
+    for path in files:
+        text = read_file(path, settings.max_file_bytes)
+        for item in scan_file(path, text):
+            payload.append(
+                {
+                    "id": f"F-{counter:03d}",
+                    "title": item.title,
+                    "cwe": item.cwe,
+                    "severity": item.severity,
+                    "file": item.file,
+                    "line": item.line,
+                    "evidence": item.evidence,
+                    "impact": item.impact,
+                    "fix_plan": item.fix_plan,
+                    "status": "open",
+                }
+            )
+            counter += 1
+    heuristic_findings = RedTeamAgent.from_heuristics(payload)
+
+    llm_findings: List[Finding] = []
     if getattr(client, "available", False) and not use_heuristics:
         try:
             agent = RedTeamAgent(client)
-            findings = agent.run(code_context, max_findings=8)
+            llm_findings = agent.run(code_context, max_findings=8)
         except Exception:
-            findings = []
-    else:
-        payload = []
-        counter = 1
-        for path in files:
-            text = read_file(path, settings.max_file_bytes)
-            for item in scan_file(path, text):
-                payload.append(
-                    {
-                        "id": f"F-{counter:03d}",
-                        "title": item.title,
-                        "cwe": item.cwe,
-                        "severity": item.severity,
-                        "file": item.file,
-                        "line": item.line,
-                        "evidence": item.evidence,
-                        "impact": item.impact,
-                        "fix_plan": item.fix_plan,
-                        "status": "open",
-                    }
-                )
-                counter += 1
-        findings = RedTeamAgent.from_heuristics(payload)
+            llm_findings = []
+
+    merged: List[Finding] = []
+    seen = set()
+    for f in heuristic_findings + llm_findings:
+        key = (f.cwe, f.title, f.file, f.line)
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(f)
+
+    findings = merged
 
     findings = normalize_findings(findings)
     write_json(run_paths.reattack, [f.model_dump() for f in findings])

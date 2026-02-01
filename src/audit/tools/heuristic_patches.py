@@ -234,14 +234,28 @@ def _fix_path_traversal(lines: List[str], finding: Finding) -> bool:
 
 
 def _fix_dom_xss(lines: List[str], finding: Finding) -> bool:
+    # Best-effort fix for common DOM XSS sinks. LLM findings often include descriptive
+    # "evidence" that doesn't match a literal line, so we fall back to pattern search.
     idx = _find_line(lines, finding.evidence)
-    if idx is None:
-        return False
-    line = lines[idx]
-    if ".innerHTML" in line:
-        lines[idx] = line.replace(".innerHTML", ".textContent")
-        return True
-    if "document.write" in line:
-        lines[idx] = re.sub(r"document\.write\((.+)\)", r"document.body.textContent = \1", line)
-        return True
-    return False
+    changed = False
+
+    if idx is not None:
+        line = lines[idx]
+        if ".innerHTML" in line:
+            lines[idx] = line.replace(".innerHTML", ".textContent")
+            return True
+        if "document.write" in line:
+            lines[idx] = re.sub(r"document\.write\((.+)\)", r"document.body.textContent = \1", line)
+            return True
+
+    for i, line in enumerate(lines):
+        if ".innerHTML" in line:
+            lines[i] = line.replace(".innerHTML", ".textContent")
+            changed = True
+
+    for i, line in enumerate(lines):
+        if "document.write" in line:
+            lines[i] = re.sub(r"document\.write\((.+)\)", r"document.body.textContent = \1", line)
+            changed = True
+
+    return changed

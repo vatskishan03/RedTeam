@@ -6,6 +6,7 @@ import json
 import os
 import sys
 from pathlib import Path
+import shutil
 from typing import List
 
 from dotenv import load_dotenv
@@ -133,6 +134,27 @@ def format_apply_results(apply_results: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def snapshot_round(run_dir: Path, round_idx: int) -> None:
+    """
+    Persist per-round artifacts for debugging. The core flows overwrite files each round,
+    so we copy them into runs/<run_id>/rounds/<n>/... to make iteration auditable.
+    """
+    src_files = [
+        "findings.json",
+        "patches.json",
+        "apply.json",
+        "reattack.json",
+        "verification.json",
+        "decisions.json",
+    ]
+    dest = run_dir / "rounds" / f"round_{round_idx:02d}"
+    dest.mkdir(parents=True, exist_ok=True)
+    for name in src_files:
+        src = run_dir / name
+        if src.exists():
+            shutil.copyfile(src, dest / name)
+
+
 def main() -> int:
     load_dotenv()
     parser = argparse.ArgumentParser()
@@ -141,8 +163,8 @@ def main() -> int:
     parser.add_argument(
         "--max-rounds",
         type=int,
-        default=int(os.getenv("AUDIT_MAX_ROUNDS", "3")),
-        help="Max adversarial fix/re-attack rounds (default: AUDIT_MAX_ROUNDS or 3).",
+        default=int(os.getenv("AUDIT_MAX_ROUNDS", "6")),
+        help="Max adversarial fix/re-attack rounds (default: AUDIT_MAX_ROUNDS or 6).",
     )
     args = parser.parse_args()
 
@@ -184,6 +206,16 @@ def main() -> int:
 
         agent_complete("attacker")
         timeline("vulns", "complete")
+
+        # Baseline scan: compare single-agent attacker findings before any fixes.
+        baseline_findings = None
+        if getattr(client, "available", False) and not use_heuristics:
+            try:
+                baseline_findings = run_baseline(
+                    target_path, client, run_id=run_paths.root.name
+                )
+            except Exception:
+                baseline_findings = None
 
         updated = findings
         decisions: List[Decision] = []
@@ -240,6 +272,7 @@ def main() -> int:
                 use_heuristics=use_heuristics,
             )
             reattack_findings = load_reattack(run_paths.root)
+            snapshot_round(run_paths.root, round_idx)
 
             if not reattack_findings:
                 agent_message("attacker", "No issues found on re-attack.", "text")
@@ -262,27 +295,29 @@ def main() -> int:
                 verdict,
                 counts={"total": len(decisions), "fixed": fixed, "rejected": rejected},
             )
+            if verdict != "approved":
+                if round_idx < max_rounds:
+                    agent_message(
+                        "arbiter",
+                        f"Not approved after round {round_idx}. Continuing adversarial loop...",
+                        "text",
+                    )
+                else:
+                    agent_message(
+                        "arbiter",
+                        f"Max rounds ({max_rounds}) reached. Proceeding to report with verdict: {verdict}.",
+                        "text",
+                    )
             agent_complete("arbiter")
             timeline("verdict", "complete")
 
             if verdict == "approved":
                 break
-            agent_message(
-                "arbiter",
-                f"Not approved after round {round_idx}. Continuing adversarial loop...",
-                "text",
-            )
 
         status_update("generating_report")
         timeline("report", "active")
         agent_start("reporter")
         agent_message("reporter", "Generating security report...", "text")
-
-        baseline_findings = None
-        if getattr(client, "available", False) and not use_heuristics:
-            baseline_findings = run_baseline(
-                target_path, client, run_id=run_paths.root.name
-            )
 
         build_scorecard(
             run_paths,

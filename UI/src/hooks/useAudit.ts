@@ -57,7 +57,10 @@ export function useAudit() {
         ...prev.agents,
         [agentId]: {
           ...prev.agents[agentId],
-          status,
+          // Never downgrade a completed agent back to "working" due to late/stderr messages.
+          status: prev.agents[agentId].status === 'complete' && status === 'working'
+            ? 'complete'
+            : status,
         },
       },
     }));
