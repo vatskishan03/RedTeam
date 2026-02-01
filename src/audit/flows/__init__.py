@@ -5,6 +5,7 @@ from .report import run_report
 from .run import run_pipeline
 from .baseline import run_baseline
 from .scorecard import build_scorecard
+from .reattack import run_reattack
 
 __all__ = [
     "run_scan",
@@ -14,4 +15,5 @@ __all__ = [
     "run_pipeline",
     "run_baseline",
     "build_scorecard",
+    "run_reattack",
 ]

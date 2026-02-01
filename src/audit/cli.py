@@ -100,6 +100,7 @@ def run_all(
     autofix: bool = typer.Option(False, "--autofix"),
     heuristic: bool = typer.Option(False, "--heuristic"),
     baseline: bool = typer.Option(True, "--baseline/--no-baseline"),
+    reattack: bool = typer.Option(True, "--reattack/--no-reattack"),
 ):
     client = _get_client()
     run_paths = run_pipeline(
@@ -109,6 +110,7 @@ def run_all(
         autofix=autofix,
         use_heuristics=heuristic or not client.available,
         baseline=baseline,
+        reattack=reattack,
     )
     console.print(f"Run complete: {run_paths.root}")
     console.print(f"Report: {run_paths.report}")

@@ -21,6 +21,7 @@ def run_pipeline(
     use_heuristics: bool = False,
     max_rounds: int = 2,
     baseline: bool = True,
+    reattack: bool = True,
 ) -> RunPaths:
     run_paths, findings, _ = run_scan(
         target_path, client, run_id=run_id, use_heuristics=use_heuristics
@@ -43,7 +44,11 @@ def run_pipeline(
             use_heuristics=use_heuristics,
         )
         run_paths, decisions, verification, updated = run_verify(
-            target_path, client, run_id=run_paths.root.name
+            target_path,
+            client,
+            run_id=run_paths.root.name,
+            reattack=reattack,
+            use_heuristics=use_heuristics,
         )
         current_findings = updated
         if decisions and all(d.status == "fixed" for d in decisions):

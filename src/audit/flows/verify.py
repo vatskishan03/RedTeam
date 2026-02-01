@@ -9,6 +9,7 @@ from audit.flows.utils import apply_decisions
 from audit.tools.jsonio import read_json, write_json
 from audit.tools.linters import run_bandit, run_pytest, run_ruff
 from audit.tools.run_state import RunPaths, ensure_run_dir
+from audit.flows.reattack import run_reattack
 
 
 def _load_findings(run_paths: RunPaths) -> List[Finding]:
@@ -25,6 +26,8 @@ def run_verify(
     target_path: Path,
     client,
     run_id: str | None = None,
+    reattack: bool = True,
+    use_heuristics: bool = False,
 ) -> Tuple[RunPaths, List[Decision], List[VerificationResult], List[Finding]]:
     run_paths = ensure_run_dir(run_id)
     findings = _load_findings(run_paths)
@@ -39,9 +42,15 @@ def run_verify(
     write_json(run_paths.verification, [v.model_dump() for v in verification])
 
     decisions: List[Decision] = []
+    reattack_findings: List[Finding] = []
+    if reattack and getattr(client, "available", False):
+        reattack_findings = run_reattack(
+            target_path, client, run_id=run_paths.root.name, use_heuristics=use_heuristics
+        )
+
     if getattr(client, "available", False):
         agent = ArbiterAgent(client)
-        decisions = agent.run(findings, patches, verification)
+        decisions = agent.run(findings, patches, verification, reattack=reattack_findings)
     else:
         status = "fixed" if all(r.exit_code == 0 for r in results) else "rejected"
         decisions = [Decision(id=f.id, status=status, reason="Tool-only verdict") for f in findings]

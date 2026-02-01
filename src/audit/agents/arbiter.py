@@ -14,16 +14,19 @@ class ArbiterAgent(BaseAgent):
         findings: List[Finding],
         patches: List[Patch],
         verification: List[VerificationResult],
+        reattack: List[Finding] | None = None,
     ) -> List[Decision]:
         findings_json = [f.model_dump() for f in findings]
         patches_json = [p.model_dump() for p in patches]
         verification_json = [v.model_dump() for v in verification]
+        reattack_json = [f.model_dump() for f in reattack] if reattack else []
         user_prompt = (
             "Decide if each finding is fixed based on patches and tool outputs.\n"
             "Reject if evidence suggests the issue remains.\n\n"
             f"Findings:\n{findings_json}\n\n"
             f"Patches:\n{patches_json}\n\n"
-            f"Verification:\n{verification_json}\n"
+            f"Verification:\n{verification_json}\n\n"
+            f"Reattack findings (post-fix scan):\n{reattack_json}\n"
         )
         raw = self.complete(ARBITER_SYSTEM, user_prompt)
         payload = extract_json(raw)

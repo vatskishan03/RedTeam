@@ -16,6 +16,7 @@ class ReporterAgent(BaseAgent):
         verification: List[VerificationResult],
         decisions: List[Decision],
         baseline: List[Finding] | None = None,
+        reattack: List[Finding] | None = None,
     ) -> str:
         payload = {
             "target_path": target_path,
@@ -24,6 +25,7 @@ class ReporterAgent(BaseAgent):
             "verification": [v.model_dump() for v in verification],
             "decisions": [d.model_dump() for d in decisions],
             "baseline": [f.model_dump() for f in baseline] if baseline else None,
+            "reattack": [f.model_dump() for f in reattack] if reattack else None,
         }
         user_prompt = (
             "Write a concise Markdown security report.\n"

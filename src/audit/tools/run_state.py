@@ -16,6 +16,7 @@ class RunPaths:
     context: Path
     findings: Path
     baseline: Path
+    reattack: Path
     patches: Path
     verification: Path
     decisions: Path
@@ -39,6 +40,7 @@ def ensure_run_dir(run_id: Optional[str] = None) -> RunPaths:
         context=root / "context.txt",
         findings=root / "findings.json",
         baseline=root / "baseline.json",
+        reattack=root / "reattack.json",
         patches=root / "patches.json",
         verification=root / "verification.json",
         decisions=root / "decisions.json",

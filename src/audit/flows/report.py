@@ -41,6 +41,12 @@ def run_report(target_path: Path, client, run_id: str | None = None) -> RunPaths
         if baseline_payload
         else None
     )
+    reattack_payload = read_json(run_paths.reattack, default=None)
+    reattack = (
+        [Finding.model_validate(item) for item in reattack_payload]
+        if reattack_payload
+        else None
+    )
     scorecard = read_json(run_paths.scorecard, default={})
 
     if getattr(client, "available", False):
@@ -52,11 +58,12 @@ def run_report(target_path: Path, client, run_id: str | None = None) -> RunPaths
             verification,
             decisions,
             baseline=baseline,
+            reattack=reattack,
         )
         report = _append_scorecard(report, scorecard)
     else:
         report = _fallback_report(
-            str(target_path), findings, verification, decisions, scorecard
+            str(target_path), findings, verification, decisions, scorecard, reattack
         )
 
     run_paths.report.write_text(report, encoding="utf-8")
@@ -69,6 +76,7 @@ def _fallback_report(
     verification: List[VerificationResult],
     decisions: List[Decision],
     scorecard: dict,
+    reattack: List[Finding] | None,
 ) -> str:
     total = len(findings)
     fixed = len([d for d in decisions if d.status == "fixed"])
@@ -81,6 +89,8 @@ def _fallback_report(
             lines.append(
                 f"- Baseline findings: {scorecard.get('baseline_total', 0)}"
             )
+    if reattack is not None:
+        lines.append(f"- Reattack findings: {len(reattack)}")
     lines.append("")
     lines.append("## Findings")
     for finding in findings:

@@ -37,6 +37,9 @@ audit run <path> --autofix
 # disable baseline comparison
 audit run <path> --no-baseline
 
+# disable post-fix reattack scan
+audit run <path> --no-reattack
+
 # heuristic-only mode (no API)
 audit run <path> --heuristic
 ```
