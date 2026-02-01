@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "adversarial-audit"
+version = "0.1.0"
+description = "Adversarial red team code auditor"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "Hackathon Team"}]
+dependencies = [
+  "openai>=1.0.0",
+  "typer>=0.12.0",
+  "rich>=13.7.0",
+  "pydantic>=2.6.0",
+  "python-dotenv>=1.0.0",
+  "pyyaml>=6.0.0",
+  "bandit>=1.7.7",
+  "ruff>=0.6.0",
+  "pytest>=8.0.0",
+]
+
+[project.scripts]
+audit = "audit.cli:app"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-q"
+testpaths = ["tests", "examples"]
