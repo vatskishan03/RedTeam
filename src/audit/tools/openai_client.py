@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from typing import Any
 
 from audit.config import settings
@@ -20,7 +21,14 @@ class OpenAIClient:
             from openai import OpenAI
             import httpx
 
-            self._client = OpenAI(http_client=httpx.Client())
+            timeout_s = float(os.getenv("AUDIT_OPENAI_TIMEOUT_S", "30"))
+            max_retries = int(os.getenv("AUDIT_OPENAI_MAX_RETRIES", "0"))
+            http_client = httpx.Client(timeout=httpx.Timeout(timeout_s))
+            self._client = OpenAI(
+                timeout=timeout_s,
+                max_retries=max_retries,
+                http_client=http_client,
+            )
             self.available = True
         except Exception as exc:
             self.error = str(exc)
