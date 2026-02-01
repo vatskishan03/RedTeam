@@ -55,6 +55,11 @@ audit run <path> --heuristic
 
 See `examples/vuln_app/` for a small intentionally vulnerable project.
 
+## Demo Script
+
+- `docs/DEMO.md` for the 2-minute walkthrough
+- `scripts/demo.sh` for a quick local run
+
 ## Notes
 
 - The tool writes run artifacts to `runs/`.
