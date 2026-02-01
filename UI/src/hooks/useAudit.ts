@@ -121,7 +121,12 @@ export function useAudit() {
         eventSourceRef.current.close();
       }
 
-      const apiBase = (process.env.NEXT_PUBLIC_AUDIT_API_URL || '').replace(/\/+$/, '');
+      const configuredBase = (process.env.NEXT_PUBLIC_AUDIT_API_URL || '').replace(/\/+$/, '');
+      const defaultProdBase = 'https://redteam-7022.onrender.com';
+      const isLocalhost = typeof window !== 'undefined' && (
+        window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+      );
+      const apiBase = configuredBase || (isLocalhost ? '' : defaultProdBase);
 
       // Production: call dedicated backend (Render) via POST + SSE stream.
       if (apiBase) {

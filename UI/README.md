@@ -78,13 +78,16 @@ UI/
 
 ## Integration with MAS Backend
 
-The UI connects to the Multi-Agent System via the `/api/audit` SSE endpoint.
+Production setup uses a dedicated Python backend (Render) that exposes:
+- `POST /audit/start` (submit code)
+- `GET /audit/stream/{run_id}` (SSE stream)
 
-To connect to the actual MAS backend:
+Configure the UI with:
+- `NEXT_PUBLIC_AUDIT_API_URL` (e.g. `https://redteam-7022.onrender.com`)
 
-1. Update `src/app/api/audit/route.ts`
-2. Forward requests to your Python MAS backend
-3. Stream responses back as SSE events
+If `NEXT_PUBLIC_AUDIT_API_URL` is **not** set:
+- On `localhost`, the UI falls back to the local Next `/api/audit` dev route (spawns Python locally).
+- On non-localhost, the UI falls back to the default Render URL baked into `useAudit.ts`.
 
 ### SSE Event Format
 
