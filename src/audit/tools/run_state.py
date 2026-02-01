@@ -15,9 +15,11 @@ class RunPaths:
     root: Path
     context: Path
     findings: Path
+    baseline: Path
     patches: Path
     verification: Path
     decisions: Path
+    scorecard: Path
     report: Path
     meta: Path
 
@@ -36,9 +38,11 @@ def ensure_run_dir(run_id: Optional[str] = None) -> RunPaths:
         root=root,
         context=root / "context.txt",
         findings=root / "findings.json",
+        baseline=root / "baseline.json",
         patches=root / "patches.json",
         verification=root / "verification.json",
         decisions=root / "decisions.json",
+        scorecard=root / "scorecard.json",
         report=root / "REPORT.md",
         meta=root / "meta.json",
     )

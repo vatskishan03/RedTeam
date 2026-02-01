@@ -34,6 +34,9 @@ audit verify <path>
 
 audit run <path> --autofix
 
+# disable baseline comparison
+audit run <path> --no-baseline
+
 # heuristic-only mode (no API)
 audit run <path> --heuristic
 ```

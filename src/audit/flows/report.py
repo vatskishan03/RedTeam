@@ -35,6 +35,13 @@ def run_report(target_path: Path, client, run_id: str | None = None) -> RunPaths
     patches = _load_patches(run_paths)
     verification = _load_verification(run_paths)
     decisions = _load_decisions(run_paths)
+    baseline_payload = read_json(run_paths.baseline, default=None)
+    baseline = (
+        [Finding.model_validate(item) for item in baseline_payload]
+        if baseline_payload
+        else None
+    )
+    scorecard = read_json(run_paths.scorecard, default={})
 
     if getattr(client, "available", False):
         agent = ReporterAgent(client)
@@ -44,9 +51,13 @@ def run_report(target_path: Path, client, run_id: str | None = None) -> RunPaths
             patches,
             verification,
             decisions,
+            baseline=baseline,
         )
+        report = _append_scorecard(report, scorecard)
     else:
-        report = _fallback_report(str(target_path), findings, verification, decisions)
+        report = _fallback_report(
+            str(target_path), findings, verification, decisions, scorecard
+        )
 
     run_paths.report.write_text(report, encoding="utf-8")
     return run_paths
@@ -57,12 +68,19 @@ def _fallback_report(
     findings: List[Finding],
     verification: List[VerificationResult],
     decisions: List[Decision],
+    scorecard: dict,
 ) -> str:
     total = len(findings)
     fixed = len([d for d in decisions if d.status == "fixed"])
     lines = ["# Security Report", "", f"Target: `{target_path}`", "", "## Summary"]
     lines.append(f"- Findings: {total}")
     lines.append(f"- Fixed: {fixed}")
+    if scorecard:
+        lines.append(f"- Fix rate: {scorecard.get('fix_rate', 0)}")
+        if "baseline_total" in scorecard:
+            lines.append(
+                f"- Baseline findings: {scorecard.get('baseline_total', 0)}"
+            )
     lines.append("")
     lines.append("## Findings")
     for finding in findings:
@@ -73,4 +91,24 @@ def _fallback_report(
     lines.append("## Verification")
     for result in verification:
         lines.append(f"- {result.name}: exit {result.exit_code}")
+    return "\n".join(lines)
+
+
+def _append_scorecard(report: str, scorecard: dict) -> str:
+    if not scorecard:
+        return report
+    lines = [
+        report,
+        "",
+        "## Scorecard",
+        f"- Findings total: {scorecard.get('findings_total', 0)}",
+        f"- Fixed: {scorecard.get('fixed', 0)}",
+        f"- Rejected: {scorecard.get('rejected', 0)}",
+        f"- Fix rate: {scorecard.get('fix_rate', 0)}",
+        f"- Tools pass: {scorecard.get('tools_pass', False)}",
+    ]
+    if "baseline_total" in scorecard:
+        lines.append(f"- Baseline total: {scorecard.get('baseline_total', 0)}")
+        lines.append(f"- Delta vs baseline: {scorecard.get('delta_vs_baseline', 0)}")
+        lines.append(f"- Baseline overlap: {scorecard.get('baseline_overlap', 0)}")
     return "\n".join(lines)
