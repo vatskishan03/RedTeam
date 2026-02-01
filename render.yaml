@@ -19,4 +19,4 @@ services:
         value: "6"
       # Comma-separated list. Keep this locked to your UI domain.
       - key: CORS_ORIGINS
-        value: "https://red-team-one.vercel.app"
+        value: "https://red-team-one.vercel.app,https://red-team-git-master-kishans-projects.vercel.app"
