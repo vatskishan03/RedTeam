@@ -18,19 +18,28 @@ class ToolResult:
 
 
 def run_command(command: List[str], cwd: Path) -> ToolResult:
-    result = subprocess.run(
-        command,
-        cwd=cwd,
-        capture_output=True,
-        text=True,
-    )
-    return ToolResult(
-        name=command[0],
-        command=command,
-        exit_code=result.returncode,
-        stdout=result.stdout,
-        stderr=result.stderr,
-    )
+    try:
+        result = subprocess.run(
+            command,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+        )
+        return ToolResult(
+            name=command[0],
+            command=command,
+            exit_code=result.returncode,
+            stdout=result.stdout,
+            stderr=result.stderr,
+        )
+    except FileNotFoundError as exc:
+        return ToolResult(
+            name=command[0],
+            command=command,
+            exit_code=127,
+            stdout="",
+            stderr=str(exc),
+        )
 
 
 def _cwd(target: Path) -> Path:

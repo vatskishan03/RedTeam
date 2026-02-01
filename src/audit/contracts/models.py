@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Any
 from pydantic import BaseModel, Field
 
 
@@ -30,7 +30,7 @@ class VerificationResult(BaseModel):
     exit_code: int
     stdout: str
     stderr: str
-    parsed: Optional[dict] = None
+    parsed: Optional[Any] = None
 
 
 class Decision(BaseModel):
