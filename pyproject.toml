@@ -7,7 +7,7 @@ name = "adversarial-audit"
 version = "0.1.0"
 description = "Adversarial red team code auditor"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 license = {text = "MIT"}
 authors = [{name = "Hackathon Team"}]
 dependencies = [

@@ -60,7 +60,7 @@ export function useAudit() {
     }));
   }, []);
 
-  const addAgentMessage = useCallback((agentId: AgentId, message: Omit<AgentMessage, 'id' | 'timestamp'>) => {
+  const addAgentMessage = useCallback((agentId: AgentId, message: Omit<AgentMessage, 'id' | 'timestamp' | 'agentId'>) => {
     const newMessage: AgentMessage = {
       ...message,
       id: `${agentId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
