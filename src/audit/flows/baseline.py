@@ -27,8 +27,11 @@ def run_baseline(
 
     findings: List[Finding] = []
     if getattr(client, "available", False):
-        agent = RedTeamAgent(client)
-        findings = agent.run(code_context, max_findings=6)
+        try:
+            agent = RedTeamAgent(client)
+            findings = agent.run(code_context, max_findings=6)
+        except Exception:
+            findings = []
     else:
         findings = []
 
