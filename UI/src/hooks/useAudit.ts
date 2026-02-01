@@ -207,6 +207,14 @@ export function useAudit() {
         break;
 
       case 'report':
+        // The backend emits a separate agent_complete for reporter, but we also
+        // treat the report payload itself as completion to avoid UI getting stuck
+        // if the stream closes early.
+        updateAgentStatus('reporter', 'complete');
+        addAgentMessage('reporter', {
+          type: 'text',
+          content: 'Report generated.',
+        });
         setState(prev => ({ ...prev, report: event.content }));
         break;
 
