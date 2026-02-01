@@ -28,6 +28,19 @@ def _scan_python(path: Path, text: str) -> List[HeuristicFinding]:
     findings: List[HeuristicFinding] = []
     lines = text.splitlines()
     for idx, line in enumerate(lines, start=1):
+        if _looks_like_path_traversal(line):
+            findings.append(
+                HeuristicFinding(
+                    title="Path traversal risk",
+                    cwe="CWE-22",
+                    severity="medium",
+                    file=str(path),
+                    line=idx,
+                    evidence=line.strip(),
+                    impact="User-controlled path may escape base directory.",
+                    fix_plan="Normalize and validate paths before opening.",
+                )
+            )
         if "pickle.loads" in line:
             findings.append(
                 HeuristicFinding(
@@ -93,20 +106,20 @@ def _scan_python(path: Path, text: str) -> List[HeuristicFinding]:
                     fix_plan="Use parameterized queries.",
                 )
             )
-        if "os.path.join" in line and "filename" in line:
-            findings.append(
-                HeuristicFinding(
-                    title="Path traversal risk",
-                    cwe="CWE-22",
-                    severity="medium",
-                    file=str(path),
-                    line=idx,
-                    evidence=line.strip(),
-                    impact="User-controlled path may escape base directory.",
-                    fix_plan="Normalize and validate paths before opening.",
-                )
-            )
     return findings
+
+
+def _looks_like_path_traversal(line: str) -> bool:
+    lowered = line.lower()
+    if "os.path.join" in line and ("filename" in lowered or "user_input" in lowered):
+        return True
+    if "base_dir" in lowered and "+" in line and ("user_input" in lowered or "filename" in lowered):
+        return True
+    if "f\"" in line or "f'" in line:
+        if "{" in line and ("filename" in lowered or "user_input" in lowered or "path" in lowered):
+            if "/" in line or "\\\\" in line:
+                return True
+    return False
 
 
 def _scan_js(path: Path, text: str) -> List[HeuristicFinding]:

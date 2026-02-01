@@ -110,6 +110,22 @@ def _ensure_import(lines: List[str], import_stmt: str) -> None:
     lines.insert(insert_at, import_stmt)
 
 
+def _assignment_lhs(line: str) -> str | None:
+    match = re.match(r"\s*(\w+)\s*=", line)
+    return match.group(1) if match else None
+
+
+def _insert_path_check(
+    lines: List[str], insert_at: int, indent: str, path_var: str, base_var: str
+) -> None:
+    check_line = (
+        f"{indent}if not os.path.abspath({path_var}).startswith(os.path.abspath({base_var}) + os.sep):"
+    )
+    raise_line = f"{indent}    raise ValueError(\"Invalid path\")"
+    lines.insert(insert_at, check_line)
+    lines.insert(insert_at + 1, raise_line)
+
+
 def _fix_sql_injection(lines: List[str], finding: Finding) -> bool:
     idx = _find_line(lines, finding.evidence)
     if idx is None:
@@ -174,22 +190,47 @@ def _fix_path_traversal(lines: List[str], finding: Finding) -> bool:
         return False
     line = lines[idx]
     indent = re.match(r"\s*", line).group(0)
-    base_match = re.search(r"os\.path\.join\(([^,]+),", line)
-    base_var = base_match.group(1).strip() if base_match else "base_dir"
-    if "os.path.normpath" not in line:
-        line = line.replace("os.path.join", "os.path.normpath(os.path.join")
-        if line.count("(") > line.count(")"):
-            line += ")"
-    lines[idx] = line
+    _ensure_import(lines, "import os")
 
-    check_line = (
-        f"{indent}if not os.path.abspath(path).startswith(os.path.abspath({base_var}) + os.sep):"
+    if "os.path.join" in line:
+        base_match = re.search(r"os\.path\.join\(([^,]+),", line)
+        base_var = base_match.group(1).strip() if base_match else "base_dir"
+        if "os.path.normpath" not in line:
+            line = line.replace("os.path.join", "os.path.normpath(os.path.join")
+            if line.count("(") > line.count(")"):
+                line += ")"
+        lines[idx] = line
+        path_var = _assignment_lhs(line) or "path"
+        _insert_path_check(lines, idx + 1, indent, path_var, base_var)
+        return True
+
+    concat_match = re.match(r"\s*(\w+)\s*=\s*(\w+)\s*\+\s*(\w+)", line)
+    if concat_match:
+        lhs, base_var, input_var = concat_match.groups()
+        lines[idx] = (
+            f"{indent}{lhs} = os.path.normpath(os.path.join({base_var}, {input_var}))"
+        )
+        _insert_path_check(lines, idx + 1, indent, lhs, base_var)
+        return True
+
+    fstring_match = re.match(
+        r"\s*(\w+)\s*=\s*f['\"]([^'\"]*)\{(\w+)\}([^'\"]*)['\"]", line
     )
-    raise_line = f"{indent}    raise ValueError(\"Invalid path\")"
-    insert_at = idx + 1
-    lines.insert(insert_at, check_line)
-    lines.insert(insert_at + 1, raise_line)
-    return True
+    if fstring_match:
+        lhs, prefix, var_name, suffix = fstring_match.groups()
+        base_dir = prefix.rstrip("/") or prefix or "/"
+        base_decl = f"{indent}base_dir = \"{base_dir}\""
+        if idx == 0 or not lines[idx - 1].strip().startswith("base_dir ="):
+            lines.insert(idx, base_decl)
+            idx += 1
+        path_expr = f"f\"{{{var_name}}}{suffix}\"" if suffix else var_name
+        lines[idx] = (
+            f"{indent}{lhs} = os.path.normpath(os.path.join(base_dir, {path_expr}))"
+        )
+        _insert_path_check(lines, idx + 1, indent, lhs, "base_dir")
+        return True
+
+    return False
 
 
 def _fix_dom_xss(lines: List[str], finding: Finding) -> bool:

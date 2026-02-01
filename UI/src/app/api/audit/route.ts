@@ -69,9 +69,26 @@ export async function GET(request: NextRequest) {
   const stream = new ReadableStream({
     start(controller) {
       const encoder = new TextEncoder();
+      let closed = false;
+
       const sendEvent = (data: object) => {
-        const message = `data: ${JSON.stringify(data)}\n\n`;
-        controller.enqueue(encoder.encode(message));
+        if (closed) return;
+        try {
+          const message = `data: ${JSON.stringify(data)}\n\n`;
+          controller.enqueue(encoder.encode(message));
+        } catch {
+          // Controller already closed, ignore
+        }
+      };
+
+      const closeStream = () => {
+        if (closed) return;
+        closed = true;
+        try {
+          controller.close();
+        } catch {
+          // Already closed
+        }
       };
 
       const child = spawn(pythonBin, args, {
@@ -90,6 +107,7 @@ export async function GET(request: NextRequest) {
       request.signal.addEventListener('abort', () => {
         child.kill('SIGTERM');
         cleanup();
+        closeStream();
       });
 
       const rl = createInterface({ input: child.stdout });
@@ -100,7 +118,7 @@ export async function GET(request: NextRequest) {
         try {
           const data = JSON.parse(line);
           sendEvent(data);
-        } catch (err) {
+        } catch {
           sendEvent({ type: 'error', message: 'Failed to parse audit output.' });
         }
       });
@@ -118,7 +136,7 @@ export async function GET(request: NextRequest) {
         }
         sendEvent({ type: 'done' });
         await cleanup();
-        controller.close();
+        closeStream();
       });
     },
   });

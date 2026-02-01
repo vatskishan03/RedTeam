@@ -124,6 +124,9 @@ def main() -> int:
         run_paths, findings, _ = run_scan(
             target_path, client, run_id=None, use_heuristics=use_heuristics
         )
+        meta = read_json(run_paths.meta, default={})
+        if isinstance(meta, dict) and str(meta.get("mode", "")).startswith("heuristic"):
+            use_heuristics = True
 
         timeline("scan", "complete")
         timeline("vulns", "active")
