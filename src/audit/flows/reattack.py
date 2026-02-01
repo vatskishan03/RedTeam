@@ -6,6 +6,8 @@ from typing import List
 from audit.agents import RedTeamAgent
 from audit.contracts import Finding
 from audit.tools.files import build_code_context, list_code_files
+from audit.tools.heuristics import scan_file
+from audit.tools.files import read_file
 from audit.tools.jsonio import write_json
 from audit.tools.run_state import ensure_run_dir
 from audit.tools.linters import run_bandit, summarize_bandit
@@ -40,7 +42,27 @@ def run_reattack(
         except Exception:
             findings = []
     else:
-        findings = []
+        payload = []
+        counter = 1
+        for path in files:
+            text = read_file(path, settings.max_file_bytes)
+            for item in scan_file(path, text):
+                payload.append(
+                    {
+                        "id": f"F-{counter:03d}",
+                        "title": item.title,
+                        "cwe": item.cwe,
+                        "severity": item.severity,
+                        "file": item.file,
+                        "line": item.line,
+                        "evidence": item.evidence,
+                        "impact": item.impact,
+                        "fix_plan": item.fix_plan,
+                        "status": "open",
+                    }
+                )
+                counter += 1
+        findings = RedTeamAgent.from_heuristics(payload)
 
     findings = normalize_findings(findings)
     write_json(run_paths.reattack, [f.model_dump() for f in findings])

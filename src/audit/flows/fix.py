@@ -34,28 +34,54 @@ def run_fix(
             target_path, client, run_id=run_paths.root.name, use_heuristics=use_heuristics
         )
 
+    active_findings = [f for f in findings if f.status != "fixed"]
+
     files = list_code_files(target_path)
     code_context = build_code_context(
         files, settings.max_file_bytes, settings.max_total_bytes
     )
 
+    # Feedback from previous round (if any). This is what makes the loop truly adversarial:
+    # the defender gets the arbiter's rejection reasons + attacker re-attack evidence.
+    feedback = {
+        "decisions": read_json(run_paths.decisions, default=[]),
+        "reattack": read_json(run_paths.reattack, default=[]),
+        "apply_results": read_json(run_paths.apply, default=[]),
+    }
+
     patches: List[Patch] = []
     if getattr(client, "available", False) and not use_heuristics:
         try:
             agent = BlueTeamAgent(client)
-            patches = agent.run(code_context, findings)
-            patches = normalize_patches(patches, findings)
+            patches = agent.run(code_context, active_findings, feedback=feedback)
+            patches = normalize_patches(patches, active_findings)
         except Exception:
             patches = []
 
     if not patches:
-        patches = generate_heuristic_patches(findings, target_path if target_path.is_dir() else target_path.parent)
+        patches = generate_heuristic_patches(
+            active_findings, target_path if target_path.is_dir() else target_path.parent
+        )
 
     write_json(run_paths.patches, [p.model_dump() for p in patches])
 
+    apply_results = []
     if autofix and patches:
-        combined = "\n".join(p.diff for p in patches)
         cwd = target_path if target_path.is_dir() else target_path.parent
-        apply_patch(combined, cwd=cwd)
+        # Apply per-patch so we can attribute failures and keep the loop informative.
+        for patch in patches:
+            result = apply_patch(patch.diff, cwd=cwd)
+            apply_results.append(
+                {
+                    "id": patch.id,
+                    "ok": result.ok,
+                    "method": result.method,
+                    "files": result.files,
+                    "note": result.note,
+                    "attempts": [a.__dict__ for a in result.attempts],
+                }
+            )
+
+    write_json(run_paths.apply, apply_results)
 
     return run_paths, findings, patches

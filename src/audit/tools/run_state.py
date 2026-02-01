@@ -18,6 +18,7 @@ class RunPaths:
     baseline: Path
     reattack: Path
     patches: Path
+    apply: Path
     verification: Path
     decisions: Path
     scorecard: Path
@@ -42,6 +43,7 @@ def ensure_run_dir(run_id: Optional[str] = None) -> RunPaths:
         baseline=root / "baseline.json",
         reattack=root / "reattack.json",
         patches=root / "patches.json",
+        apply=root / "apply.json",
         verification=root / "verification.json",
         decisions=root / "decisions.json",
         scorecard=root / "scorecard.json",

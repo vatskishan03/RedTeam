@@ -16,6 +16,7 @@ interface AuditHookState {
   timeline: TimelineStep[];
   report: string | null;
   verdict: 'approved' | 'rejected' | 'partial' | null;
+  counts: { total: number; fixed: number; rejected: number } | null;
   error: string | null;
 }
 
@@ -36,12 +37,14 @@ const initialState: AuditHookState = {
   timeline: TIMELINE_STEPS.map(step => ({ ...step })),
   report: null,
   verdict: null,
+  counts: null,
   error: null,
 };
 
 export function useAudit() {
   const [state, setState] = useState<AuditHookState>(initialState);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const runIdRef = useRef<string | null>(null);
 
   const resetState = useCallback(() => {
     setState(initialState);
@@ -107,6 +110,7 @@ export function useAudit() {
     // Reset state
     resetState();
     setState(prev => ({ ...prev, status: 'scanning' }));
+    runIdRef.current = null;
 
     try {
       // Close any existing connection
@@ -149,6 +153,15 @@ export function useAudit() {
   }, [resetState]);
 
   const handleSSEEvent = useCallback((event: any) => {
+    // Guard against stale events (e.g., if a previous SSE stream lingers).
+    if (event?.run_id) {
+      if (!runIdRef.current) {
+        runIdRef.current = String(event.run_id);
+      } else if (String(event.run_id) !== runIdRef.current) {
+        return;
+      }
+    }
+
     switch (event.type) {
       case 'agent_start':
         updateAgentStatus(event.agent as AgentId, 'working');
@@ -179,7 +192,15 @@ export function useAudit() {
         break;
 
       case 'verdict':
-        setState(prev => ({ ...prev, verdict: event.verdict }));
+        setState(prev => ({ 
+          ...prev, 
+          verdict: event.verdict,
+          counts: event.counts ? {
+            total: Number(event.counts.total) || 0,
+            fixed: Number(event.counts.fixed) || 0,
+            rejected: Number(event.counts.rejected) || 0,
+          } : prev.counts,
+        }));
         break;
 
       case 'report':

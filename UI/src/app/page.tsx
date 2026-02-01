@@ -17,6 +17,7 @@ export default function Home() {
     timeline,
     report,
     verdict,
+    counts,
     error,
     isLoading,
     startAudit,
@@ -148,8 +149,8 @@ export default function Home() {
               <SecurityReport
                 report={report}
                 verdict={verdict || undefined}
-                vulnerabilitiesCount={2}
-                fixedCount={2}
+                vulnerabilitiesCount={counts?.total ?? 0}
+                fixedCount={counts?.fixed ?? 0}
               />
             </motion.div>
           )}

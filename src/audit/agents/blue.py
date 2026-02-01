@@ -9,12 +9,16 @@ from audit.tools.jsonio import extract_json
 
 
 class BlueTeamAgent(BaseAgent):
-    def run(self, code_context: str, findings: List[Finding]) -> List[Patch]:
+    def run(
+        self, code_context: str, findings: List[Finding], feedback: dict | None = None
+    ) -> List[Patch]:
         findings_json = [f.model_dump() for f in findings]
+        feedback_json = feedback or {}
         user_prompt = (
             "Propose minimal patches for the findings below.\n"
             "Return only unified diffs.\n\n"
             f"Findings JSON:\n{findings_json}\n\n"
+            f"Feedback from previous round (if any):\n{feedback_json}\n\n"
             "Code context:\n"
             + code_context
         )

@@ -21,12 +21,18 @@ Return STRICT JSON only (no markdown, no code fences) with this schema: {"patche
 Each Patch must include: id (matching finding), diff (unified diff with --- a/<path> +++ b/<path>), rationale.
 Use paths relative to the project root.
 Keep diffs minimal and only change necessary lines.
+IMPORTANT diff rules:
+- Use a valid unified diff format. Each hunk header must be like: @@ -<start>,<count> +<start>,<count> @@
+- Every line inside a hunk MUST start with one of: ' ' (context), '-' (remove), '+' (add). This includes blank lines.
+- Do not omit the @@ ranges; they must be accurate for the diff you output.
 """
 
 ARBITER_SYSTEM = """You are a security arbiter. Validate fixes based on tool outputs and evidence.
 Return STRICT JSON only (no markdown, no code fences) with this schema: {"decisions": [Decision]}.
 Each Decision must include: id, status (fixed|rejected), reason.
-If tools indicate the issue remains, reject.
+If patch apply results show a patch did not apply for a finding id, reject that finding.
+If re-attack findings show the issue remains, reject.
+If evidence suggests the issue is fixed in the scanned code, mark fixed even if optional tools are missing.
 """
 
 REPORTER_SYSTEM = """You are a security report writer. Produce concise Markdown.

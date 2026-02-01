@@ -15,9 +15,11 @@ class ArbiterAgent(BaseAgent):
         patches: List[Patch],
         verification: List[VerificationResult],
         reattack: List[Finding] | None = None,
+        apply_results: list[dict] | None = None,
     ) -> List[Decision]:
         findings_json = [f.model_dump() for f in findings]
         patches_json = [p.model_dump() for p in patches]
+        apply_json = apply_results or []
         verification_json = [v.model_dump() for v in verification]
         reattack_json = [f.model_dump() for f in reattack] if reattack else []
         user_prompt = (
@@ -25,6 +27,7 @@ class ArbiterAgent(BaseAgent):
             "Reject if evidence suggests the issue remains.\n\n"
             f"Findings:\n{findings_json}\n\n"
             f"Patches:\n{patches_json}\n\n"
+            f"Patch apply results:\n{apply_json}\n\n"
             f"Verification:\n{verification_json}\n\n"
             f"Reattack findings (post-fix scan):\n{reattack_json}\n"
         )

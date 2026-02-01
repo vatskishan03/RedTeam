@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import List
@@ -19,10 +20,16 @@ from audit.flows.scorecard import build_scorecard
 from audit.flows.verify import run_verify
 from audit.tools.jsonio import read_json
 from audit.tools.openai_client import OpenAIClient
+from audit.tools.run_state import ensure_run_dir
+
+
+RUN_ID: str | None = None
 
 
 def emit(payload: dict) -> None:
     try:
+        if RUN_ID and "run_id" not in payload:
+            payload["run_id"] = RUN_ID
         sys.stdout.write(json.dumps(payload) + "\n")
         sys.stdout.flush()
     except BrokenPipeError:
@@ -56,8 +63,11 @@ def status_update(status: str) -> None:
     emit({"type": "status_update", "status": status})
 
 
-def verdict_event(verdict: str) -> None:
-    emit({"type": "verdict", "verdict": verdict})
+def verdict_event(verdict: str, counts: dict | None = None) -> None:
+    payload = {"type": "verdict", "verdict": verdict}
+    if counts:
+        payload["counts"] = counts
+    emit(payload)
 
 
 def report_event(content: str) -> None:
@@ -104,16 +114,46 @@ def load_reattack(run_dir: Path) -> List[Finding]:
     return [Finding.model_validate(item) for item in payload]
 
 
+def load_apply_results(run_dir: Path) -> list[dict]:
+    payload = read_json(run_dir / "apply.json", default=[])
+    return payload if isinstance(payload, list) else []
+
+
+def format_apply_results(apply_results: list[dict]) -> str:
+    if not apply_results:
+        return "No patch application results recorded."
+    lines = ["🧩 Patch application results:"]
+    for item in apply_results:
+        fid = item.get("id", "?")
+        ok = item.get("ok", False)
+        method = item.get("method", "none")
+        note = item.get("note")
+        suffix = f" ({note})" if note else ""
+        lines.append(f"- {fid}: {'OK' if ok else 'FAIL'} via {method}{suffix}")
+    return "\n".join(lines)
+
+
 def main() -> int:
     load_dotenv()
     parser = argparse.ArgumentParser()
     parser.add_argument("--path", required=True, help="Path to codebase")
     parser.add_argument("--heuristic", action="store_true")
+    parser.add_argument(
+        "--max-rounds",
+        type=int,
+        default=int(os.getenv("AUDIT_MAX_ROUNDS", "3")),
+        help="Max adversarial fix/re-attack rounds (default: AUDIT_MAX_ROUNDS or 3).",
+    )
     args = parser.parse_args()
 
     target_path = Path(args.path)
     client = OpenAIClient()
     use_heuristics = args.heuristic or not client.available
+    max_rounds = max(1, int(args.max_rounds))
+
+    global RUN_ID
+    run_paths = ensure_run_dir(None)
+    RUN_ID = run_paths.root.name
 
     try:
         status_update("scanning")
@@ -122,7 +162,7 @@ def main() -> int:
         agent_message("attacker", "Initializing scan...", "text")
 
         run_paths, findings, _ = run_scan(
-            target_path, client, run_id=None, use_heuristics=use_heuristics
+            target_path, client, run_id=run_paths.root.name, use_heuristics=use_heuristics
         )
         meta = read_json(run_paths.meta, default={})
         if isinstance(meta, dict) and str(meta.get("mode", "")).startswith("heuristic"):
@@ -145,70 +185,93 @@ def main() -> int:
         agent_complete("attacker")
         timeline("vulns", "complete")
 
-        status_update("proposing_fixes")
-        timeline("fix", "active")
-        agent_start("defender")
-        agent_message("defender", "Analyzing findings and proposing minimal patches...", "text")
+        updated = findings
+        decisions: List[Decision] = []
+        verification: List[VerificationResult] = []
+        verdict = "rejected"
 
-        _, _, patches = run_fix(
-            target_path,
-            client,
-            run_id=run_paths.root.name,
-            autofix=True,
-            use_heuristics=use_heuristics,
-        )
-
-        if not patches:
+        for round_idx in range(1, max_rounds + 1):
+            status_update("proposing_fixes")
+            timeline("fix", "active")
+            agent_start("defender")
             agent_message(
                 "defender",
-                "No patches generated (LLM unavailable or no findings).",
+                f"Round {round_idx}/{max_rounds}: proposing minimal patches...",
                 "text",
             )
-        else:
-            for patch in patches:
-                agent_message("defender", format_patch(patch), "fix")
 
-        agent_complete("defender")
-        timeline("fix", "complete")
+            _, _, patches = run_fix(
+                target_path,
+                client,
+                run_id=run_paths.root.name,
+                autofix=True,
+                use_heuristics=use_heuristics,
+            )
+            apply_results = load_apply_results(run_paths.root)
 
-        status_update("re_attacking")
-        timeline("reattack", "active")
-        agent_start("attacker")
-        agent_message("attacker", "Re-attacking with fixes applied...", "text")
+            if not patches:
+                agent_message(
+                    "defender",
+                    "No patches generated (LLM unavailable or no active findings).",
+                    "text",
+                )
+            else:
+                for patch in patches:
+                    agent_message("defender", format_patch(patch), "fix")
+                agent_message("defender", format_apply_results(apply_results), "text")
 
-        _, decisions, verification, updated = run_verify(
-            target_path,
-            client,
-            run_id=run_paths.root.name,
-            reattack=True,
-            use_heuristics=use_heuristics,
-        )
-        reattack_findings = load_reattack(run_paths.root)
+            agent_complete("defender")
+            timeline("fix", "complete")
 
-        if use_heuristics:
+            status_update("re_attacking")
+            timeline("reattack", "active")
+            agent_start("attacker")
             agent_message(
                 "attacker",
-                "Re-attack skipped (LLM unavailable in heuristic mode).",
+                f"Round {round_idx}/{max_rounds}: re-attacking the patched code...",
                 "text",
             )
-        elif not reattack_findings:
-            agent_message("attacker", "No issues found on re-attack.", "text")
-        else:
-            for finding in reattack_findings:
-                agent_message("attacker", format_finding(finding), "vulnerability")
 
-        agent_complete("attacker")
-        timeline("reattack", "complete")
+            _, decisions, verification, updated = run_verify(
+                target_path,
+                client,
+                run_id=run_paths.root.name,
+                reattack=True,
+                use_heuristics=use_heuristics,
+            )
+            reattack_findings = load_reattack(run_paths.root)
 
-        status_update("validating")
-        timeline("verdict", "active")
-        agent_start("arbiter")
-        agent_message("arbiter", "Reviewing verification results...", "text")
-        agent_message("arbiter", format_decisions(decisions), "verdict")
-        verdict = calculate_verdict(decisions)
-        verdict_event(verdict)
-        agent_complete("arbiter")
-        timeline("verdict", "complete")
+            if not reattack_findings:
+                agent_message("attacker", "No issues found on re-attack.", "text")
+            else:
+                for finding in reattack_findings:
+                    agent_message("attacker", format_finding(finding), "vulnerability")
+
+            agent_complete("attacker")
+            timeline("reattack", "complete")
+
+            status_update("validating")
+            timeline("verdict", "active")
+            agent_start("arbiter")
+            agent_message("arbiter", "Reviewing verification results...", "text")
+            agent_message("arbiter", format_decisions(decisions), "verdict")
+            verdict = calculate_verdict(decisions)
+            fixed = len([d for d in decisions if d.status == "fixed"])
+            rejected = len([d for d in decisions if d.status == "rejected"])
+            verdict_event(
+                verdict,
+                counts={"total": len(decisions), "fixed": fixed, "rejected": rejected},
+            )
+            agent_complete("arbiter")
+            timeline("verdict", "complete")
+
+            if verdict == "approved":
+                break
+            agent_message(
+                "arbiter",
+                f"Not approved after round {round_idx}. Continuing adversarial loop...",
+                "text",
+            )
 
         status_update("generating_report")
         timeline("report", "active")
