@@ -7,6 +7,9 @@ import os from 'os';
 import path from 'path';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const fetchCache = 'force-no-store';
 
 const SUPPORTED_LANGUAGES = new Set(['python', 'javascript', 'typescript']);
 const EXTENSION_MAP: Record<string, string> = {
@@ -94,6 +97,12 @@ export async function GET(request: NextRequest) {
       const child = spawn(pythonBin, args, {
         cwd: repoRoot,
         env,
+      });
+
+      child.on('error', async (err) => {
+        sendEvent({ type: 'error', message: `Failed to start audit process: ${err.message}` });
+        await cleanup();
+        closeStream();
       });
 
       const cleanup = async () => {
