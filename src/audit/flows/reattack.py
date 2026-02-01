@@ -34,8 +34,11 @@ def run_reattack(
 
     findings: List[Finding] = []
     if getattr(client, "available", False) and not use_heuristics:
-        agent = RedTeamAgent(client)
-        findings = agent.run(code_context, max_findings=8)
+        try:
+            agent = RedTeamAgent(client)
+            findings = agent.run(code_context, max_findings=8)
+        except Exception:
+            findings = []
     else:
         findings = []
 

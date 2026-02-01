@@ -29,7 +29,12 @@ def _load_decisions(run_paths: RunPaths) -> List[Decision]:
     return [Decision.model_validate(item) for item in payload]
 
 
-def run_report(target_path: Path, client, run_id: str | None = None) -> RunPaths:
+def run_report(
+    target_path: Path,
+    client,
+    run_id: str | None = None,
+    use_heuristics: bool = False,
+) -> RunPaths:
     run_paths = ensure_run_dir(run_id)
     findings = _load_findings(run_paths)
     patches = _load_patches(run_paths)
@@ -49,18 +54,23 @@ def run_report(target_path: Path, client, run_id: str | None = None) -> RunPaths
     )
     scorecard = read_json(run_paths.scorecard, default={})
 
-    if getattr(client, "available", False):
-        agent = ReporterAgent(client)
-        report = agent.run(
-            str(target_path),
-            findings,
-            patches,
-            verification,
-            decisions,
-            baseline=baseline,
-            reattack=reattack,
-        )
-        report = _append_scorecard(report, scorecard)
+    if getattr(client, "available", False) and not use_heuristics:
+        try:
+            agent = ReporterAgent(client)
+            report = agent.run(
+                str(target_path),
+                findings,
+                patches,
+                verification,
+                decisions,
+                baseline=baseline,
+                reattack=reattack,
+            )
+            report = _append_scorecard(report, scorecard)
+        except Exception:
+            report = _fallback_report(
+                str(target_path), findings, verification, decisions, scorecard, reattack
+            )
     else:
         report = _fallback_report(
             str(target_path), findings, verification, decisions, scorecard, reattack

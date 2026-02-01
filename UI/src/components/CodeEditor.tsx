@@ -14,8 +14,6 @@ const LANGUAGES = [
   { id: 'python', name: 'Python', icon: '🐍' },
   { id: 'javascript', name: 'JavaScript', icon: '📜' },
   { id: 'typescript', name: 'TypeScript', icon: '💙' },
-  { id: 'go', name: 'Go', icon: '🐹' },
-  { id: 'java', name: 'Java', icon: '☕' },
 ];
 
 const SAMPLE_OPTIONS = [

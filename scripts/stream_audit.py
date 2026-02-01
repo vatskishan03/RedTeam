@@ -220,7 +220,9 @@ def main() -> int:
             verification,
             baseline=baseline_findings,
         )
-        run_report(target_path, client, run_id=run_paths.root.name)
+        run_report(
+            target_path, client, run_id=run_paths.root.name, use_heuristics=use_heuristics
+        )
 
         report_path = run_paths.report
         report_content = report_path.read_text(encoding="utf-8")

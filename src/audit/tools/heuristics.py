@@ -18,6 +18,13 @@ class HeuristicFinding:
 
 
 def scan_file(path: Path, text: str) -> List[HeuristicFinding]:
+    suffix = path.suffix.lower()
+    if suffix in {".js", ".jsx", ".ts", ".tsx"}:
+        return _scan_js(path, text)
+    return _scan_python(path, text)
+
+
+def _scan_python(path: Path, text: str) -> List[HeuristicFinding]:
     findings: List[HeuristicFinding] = []
     lines = text.splitlines()
     for idx, line in enumerate(lines, start=1):
@@ -97,6 +104,65 @@ def scan_file(path: Path, text: str) -> List[HeuristicFinding]:
                     evidence=line.strip(),
                     impact="User-controlled path may escape base directory.",
                     fix_plan="Normalize and validate paths before opening.",
+                )
+            )
+    return findings
+
+
+def _scan_js(path: Path, text: str) -> List[HeuristicFinding]:
+    findings: List[HeuristicFinding] = []
+    lines = text.splitlines()
+    for idx, line in enumerate(lines, start=1):
+        if ".innerHTML" in line:
+            findings.append(
+                HeuristicFinding(
+                    title="DOM XSS via innerHTML",
+                    cwe="CWE-79",
+                    severity="high",
+                    file=str(path),
+                    line=idx,
+                    evidence=line.strip(),
+                    impact="Untrusted input can execute script in the browser.",
+                    fix_plan="Use textContent or sanitize HTML before inserting.",
+                )
+            )
+        if "document.write" in line:
+            findings.append(
+                HeuristicFinding(
+                    title="DOM XSS via document.write",
+                    cwe="CWE-79",
+                    severity="high",
+                    file=str(path),
+                    line=idx,
+                    evidence=line.strip(),
+                    impact="document.write with user input can execute script.",
+                    fix_plan="Avoid document.write; use safe DOM APIs.",
+                )
+            )
+        if "dangerouslySetInnerHTML" in line:
+            findings.append(
+                HeuristicFinding(
+                    title="Dangerous HTML injection",
+                    cwe="CWE-79",
+                    severity="high",
+                    file=str(path),
+                    line=idx,
+                    evidence=line.strip(),
+                    impact="Untrusted HTML can execute script in the browser.",
+                    fix_plan="Sanitize HTML or avoid dangerouslySetInnerHTML.",
+                )
+            )
+        if "eval(" in line or "new Function" in line:
+            findings.append(
+                HeuristicFinding(
+                    title="Dynamic code execution",
+                    cwe="CWE-95",
+                    severity="high",
+                    file=str(path),
+                    line=idx,
+                    evidence=line.strip(),
+                    impact="Dynamic code execution can lead to XSS or RCE.",
+                    fix_plan="Avoid eval/new Function; use safer alternatives.",
                 )
             )
     return findings

@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Iterable, List
+import os
 
 IGNORE_DIRS = {
     ".git",
@@ -15,7 +18,15 @@ IGNORE_DIRS = {
 }
 
 
-def list_code_files(root: Path, extensions: Iterable[str] = (".py",)) -> List[Path]:
+def _default_extensions() -> List[str]:
+    env_value = os.getenv("AUDIT_EXTENSIONS")
+    if env_value:
+        return [ext.strip() for ext in env_value.split(",") if ext.strip()]
+    return [".py", ".js", ".ts", ".jsx", ".tsx"]
+
+
+def list_code_files(root: Path, extensions: Iterable[str] | None = None) -> List[Path]:
+    extensions = list(extensions or _default_extensions())
     if root.is_file():
         return [root] if root.suffix in extensions else []
     files: List[Path] = []

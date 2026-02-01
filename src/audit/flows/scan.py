@@ -33,36 +33,45 @@ def run_scan(
         if hints:
             code_context = f"{code_context}\n\n{hints}"
     run_paths.context.write_text(code_context, encoding="utf-8")
-    mode = "heuristic" if use_heuristics or not getattr(client, "available", False) else "llm"
-    write_meta(run_paths, target_path, settings.model, mode)
 
     findings: List[Finding] = []
+    mode = "llm"
     if use_heuristics or not getattr(client, "available", False):
-        heuristic_payload = []
-        counter = 1
-        for path in files:
-            text = read_file(path, settings.max_file_bytes)
-            for item in scan_file(path, text):
-                heuristic_payload.append(
-                    {
-                        "id": f"F-{counter:03d}",
-                        "title": item.title,
-                        "cwe": item.cwe,
-                        "severity": item.severity,
-                        "file": item.file,
-                        "line": item.line,
-                        "evidence": item.evidence,
-                        "impact": item.impact,
-                        "fix_plan": item.fix_plan,
-                        "status": "open",
-                    }
-                )
-                counter += 1
-        findings = RedTeamAgent.from_heuristics(heuristic_payload)
+        mode = "heuristic"
+        findings = _run_heuristics(files)
     else:
-        agent = RedTeamAgent(client)
-        findings = agent.run(code_context)
+        try:
+            agent = RedTeamAgent(client)
+            findings = agent.run(code_context)
+        except Exception:
+            mode = "heuristic-fallback"
+            findings = _run_heuristics(files)
 
     findings = normalize_findings(findings)
     write_json(run_paths.findings, [f.model_dump() for f in findings])
+    write_meta(run_paths, target_path, settings.model, mode)
     return run_paths, findings, code_context
+
+
+def _run_heuristics(files: list[Path]) -> List[Finding]:
+    heuristic_payload = []
+    counter = 1
+    for path in files:
+        text = read_file(path, settings.max_file_bytes)
+        for item in scan_file(path, text):
+            heuristic_payload.append(
+                {
+                    "id": f"F-{counter:03d}",
+                    "title": item.title,
+                    "cwe": item.cwe,
+                    "severity": item.severity,
+                    "file": item.file,
+                    "line": item.line,
+                    "evidence": item.evidence,
+                    "impact": item.impact,
+                    "fix_plan": item.fix_plan,
+                    "status": "open",
+                }
+            )
+            counter += 1
+    return RedTeamAgent.from_heuristics(heuristic_payload)

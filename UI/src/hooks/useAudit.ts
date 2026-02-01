@@ -109,14 +109,6 @@ export function useAudit() {
     setState(prev => ({ ...prev, status: 'scanning' }));
 
     try {
-      if (language !== 'python') {
-        setState(prev => ({
-          ...prev,
-          status: 'idle',
-          error: 'Only Python is supported in this build.',
-        }));
-        return;
-      }
       // Close any existing connection
       if (eventSourceRef.current) {
         eventSourceRef.current.close();

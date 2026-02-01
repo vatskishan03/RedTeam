@@ -43,17 +43,28 @@ def run_verify(
 
     decisions: List[Decision] = []
     reattack_findings: List[Finding] = []
-    if reattack and getattr(client, "available", False):
+    if reattack and getattr(client, "available", False) and not use_heuristics:
         reattack_findings = run_reattack(
             target_path, client, run_id=run_paths.root.name, use_heuristics=use_heuristics
         )
 
-    if getattr(client, "available", False):
-        agent = ArbiterAgent(client)
-        decisions = agent.run(findings, patches, verification, reattack=reattack_findings)
+    tool_status = "fixed" if all(r.exit_code == 0 for r in results) else "rejected"
+    if getattr(client, "available", False) and not use_heuristics:
+        try:
+            agent = ArbiterAgent(client)
+            decisions = agent.run(
+                findings, patches, verification, reattack=reattack_findings
+            )
+        except Exception:
+            decisions = [
+                Decision(id=f.id, status=tool_status, reason="Tool-only verdict")
+                for f in findings
+            ]
     else:
-        status = "fixed" if all(r.exit_code == 0 for r in results) else "rejected"
-        decisions = [Decision(id=f.id, status=status, reason="Tool-only verdict") for f in findings]
+        decisions = [
+            Decision(id=f.id, status=tool_status, reason="Tool-only verdict")
+            for f in findings
+        ]
 
     write_json(run_paths.decisions, [d.model_dump() for d in decisions])
     updated_findings = apply_decisions(findings, decisions)

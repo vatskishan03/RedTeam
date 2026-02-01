@@ -9,6 +9,7 @@ from audit.flows.scan import run_scan
 from audit.flows.utils import normalize_patches
 from audit.tools.jsonio import read_json, write_json
 from audit.tools.patch import apply_patch
+from audit.tools.heuristic_patches import generate_heuristic_patches
 from audit.tools.run_state import RunPaths, ensure_run_dir
 from audit.tools.files import build_code_context, list_code_files
 from audit.config import settings
@@ -39,10 +40,16 @@ def run_fix(
     )
 
     patches: List[Patch] = []
-    if getattr(client, "available", False):
-        agent = BlueTeamAgent(client)
-        patches = agent.run(code_context, findings)
-        patches = normalize_patches(patches, findings)
+    if getattr(client, "available", False) and not use_heuristics:
+        try:
+            agent = BlueTeamAgent(client)
+            patches = agent.run(code_context, findings)
+            patches = normalize_patches(patches, findings)
+        except Exception:
+            patches = []
+
+    if not patches:
+        patches = generate_heuristic_patches(findings, target_path if target_path.is_dir() else target_path.parent)
 
     write_json(run_paths.patches, [p.model_dump() for p in patches])
 

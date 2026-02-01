@@ -9,6 +9,8 @@ runs/
 dist/
 build/
 *.egg-info/
+*.rej
+*.orig
 (External) Hackathon Guide (1).pdf
 AGENTS.md
 implementation.md

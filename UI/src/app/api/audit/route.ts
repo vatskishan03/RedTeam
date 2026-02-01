@@ -8,7 +8,12 @@ import path from 'path';
 
 export const runtime = 'nodejs';
 
-const SUPPORTED_LANGUAGES = new Set(['python']);
+const SUPPORTED_LANGUAGES = new Set(['python', 'javascript', 'typescript']);
+const EXTENSION_MAP: Record<string, string> = {
+  python: 'py',
+  javascript: 'js',
+  typescript: 'ts',
+};
 
 function findRepoRoot(): string {
   const candidates = [process.cwd(), path.resolve(process.cwd(), '..')];
@@ -42,11 +47,12 @@ export async function GET(request: NextRequest) {
   }
 
   const repoRoot = findRepoRoot();
-  const pythonBin = process.env.PYTHON_BIN || 'python3';
+  const pythonBin = process.env.PYTHON_BIN || path.join(repoRoot, '.venv', 'bin', 'python3');
   const scriptPath = path.join(repoRoot, 'scripts', 'stream_audit.py');
 
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'redteam-'));
-  const targetFile = path.join(tempRoot, 'snippet.py');
+  const extension = EXTENSION_MAP[language] || 'txt';
+  const targetFile = path.join(tempRoot, `snippet.${extension}`);
   await writeFile(targetFile, code, 'utf-8');
 
   const useHeuristic = !process.env.OPENAI_API_KEY;

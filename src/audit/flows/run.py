@@ -61,5 +61,10 @@ def run_pipeline(
         verification,
         baseline=baseline_findings,
     )
-    run_report(target_path, client, run_id=run_paths.root.name)
+    run_report(
+        target_path,
+        client,
+        run_id=run_paths.root.name,
+        use_heuristics=use_heuristics,
+    )
     return run_paths
