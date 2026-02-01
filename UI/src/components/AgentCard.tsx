@@ -143,23 +143,48 @@ function MessageBubble({ message, agentColor }: { message: AgentMessage; agentCo
   }
 
   if (message.type === 'verdict') {
-    const isApproved = message.content.toLowerCase().includes('approved') || 
-                       message.content.toLowerCase().includes('secure');
+    const lines = message.content.split('\n');
+    const verdictLines = lines.filter((line) => line.trim().startsWith('- '));
+    const statuses = verdictLines
+      .map((line) => {
+        const match = line.match(/:\s*(FIXED|REJECTED)\b/i);
+        return match ? match[1].toLowerCase() : null;
+      })
+      .filter(Boolean) as Array<'fixed' | 'rejected'>;
+
+    const hasFixed = statuses.includes('fixed');
+    const hasRejected = statuses.includes('rejected');
+
+    const verdict: 'approved' | 'rejected' | 'partial' =
+      hasFixed && hasRejected ? 'partial' : hasFixed ? 'approved' : 'rejected';
+
+    const isApproved = verdict === 'approved';
+    const isPartial = verdict === 'partial';
     return (
       <div
         className={`rounded-lg p-3 ${
           isApproved
             ? 'bg-agent-defender/10 border border-agent-defender/30'
+            : isPartial
+            ? 'bg-agent-arbiter/10 border border-agent-arbiter/30'
             : 'bg-agent-attacker/10 border border-agent-attacker/30'
         }`}
       >
         <div className="flex items-center gap-2 mb-1">
           <span
             className={`text-xs font-medium ${
-              isApproved ? 'text-agent-defender' : 'text-agent-attacker'
+              isApproved
+                ? 'text-agent-defender'
+                : isPartial
+                ? 'text-agent-arbiter'
+                : 'text-agent-attacker'
             }`}
           >
-            {isApproved ? '✅ VERDICT: APPROVED' : '❌ VERDICT: REJECTED'}
+            {isApproved
+              ? '✅ VERDICT: APPROVED'
+              : isPartial
+              ? '⚠️ VERDICT: PARTIAL'
+              : '❌ VERDICT: REJECTED'}
           </span>
         </div>
         <p className="text-sm text-text-primary whitespace-pre-wrap">{message.content}</p>
