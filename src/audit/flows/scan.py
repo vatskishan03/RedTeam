@@ -9,6 +9,7 @@ from audit.tools.files import build_code_context, list_code_files, read_file
 from audit.tools.heuristics import scan_file
 from audit.tools.jsonio import write_json
 from audit.tools.run_state import RunPaths, ensure_run_dir, write_meta
+from audit.tools.linters import run_bandit, summarize_bandit
 from audit.flows.utils import normalize_findings
 from audit.config import settings
 
@@ -26,6 +27,11 @@ def run_scan(
     code_context = build_code_context(
         files, settings.max_file_bytes, settings.max_total_bytes
     )
+    if getattr(client, "available", False) and not use_heuristics:
+        bandit_result = run_bandit(target_path)
+        hints = summarize_bandit(bandit_result)
+        if hints:
+            code_context = f"{code_context}\n\n{hints}"
     run_paths.context.write_text(code_context, encoding="utf-8")
     mode = "heuristic" if use_heuristics or not getattr(client, "available", False) else "llm"
     write_meta(run_paths, target_path, settings.model, mode)

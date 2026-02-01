@@ -5,7 +5,7 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class Settings:
-    model: str = os.getenv("OPENAI_MODEL", "gpt-4.1")
+    model: str = os.getenv("OPENAI_MODEL", "gpt-5.2")
     temperature: float = float(os.getenv("OPENAI_TEMPERATURE", "0.2"))
     max_tokens: int = int(os.getenv("OPENAI_MAX_TOKENS", "2000"))
     run_dir: Path = Path(os.getenv("AUDIT_RUN_DIR", "runs"))

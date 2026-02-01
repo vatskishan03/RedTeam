@@ -47,6 +47,19 @@ def run_bandit(target: Path) -> ToolResult:
     return result
 
 
+def summarize_bandit(result: ToolResult, limit: int = 20) -> str:
+    if not result.parsed or "results" not in result.parsed:
+        return ""
+    lines = ["# Static analysis hints (bandit)"]
+    for item in result.parsed.get("results", [])[:limit]:
+        filename = item.get("filename", "")
+        line = item.get("line_number", "")
+        test_id = item.get("test_id", "")
+        issue = item.get("issue_text", "")
+        lines.append(f"- {test_id} {filename}:{line} {issue}")
+    return "\n".join(lines)
+
+
 def run_ruff(target: Path) -> ToolResult:
     command = ["ruff", "check", str(target), "--output-format", "json"]
     result = run_command(command, cwd=_cwd(target))

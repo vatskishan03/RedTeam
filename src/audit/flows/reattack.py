@@ -8,6 +8,7 @@ from audit.contracts import Finding
 from audit.tools.files import build_code_context, list_code_files
 from audit.tools.jsonio import write_json
 from audit.tools.run_state import ensure_run_dir
+from audit.tools.linters import run_bandit, summarize_bandit
 from audit.flows.utils import normalize_findings
 from audit.config import settings
 
@@ -25,6 +26,11 @@ def run_reattack(
     code_context = build_code_context(
         files, settings.max_file_bytes, settings.max_total_bytes
     )
+    if getattr(client, "available", False) and not use_heuristics:
+        bandit_result = run_bandit(target_path)
+        hints = summarize_bandit(bandit_result)
+        if hints:
+            code_context = f"{code_context}\n\n{hints}"
 
     findings: List[Finding] = []
     if getattr(client, "available", False) and not use_heuristics:
