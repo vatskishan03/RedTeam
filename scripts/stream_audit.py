@@ -127,6 +127,9 @@ def main() -> int:
         meta = read_json(run_paths.meta, default={})
         if isinstance(meta, dict) and str(meta.get("mode", "")).startswith("heuristic"):
             use_heuristics = True
+        if isinstance(meta, dict) and meta.get("mode"):
+            agent_message("attacker", f"Scan mode: {meta['mode']}", "text")
+        agent_message("attacker", f"Run ID: {run_paths.root.name}", "text")
 
         timeline("scan", "complete")
         timeline("vulns", "active")

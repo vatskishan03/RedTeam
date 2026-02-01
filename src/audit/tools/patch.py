@@ -28,8 +28,12 @@ def _try_git_apply(patch_path: Path, cwd: Path) -> bool:
             cwd=cwd,
             capture_output=True,
             text=True,
+            stdin=subprocess.DEVNULL,
+            timeout=15,
         )
         return result.returncode == 0
+    except subprocess.TimeoutExpired:
+        return False
     except FileNotFoundError:
         return False
 
@@ -37,11 +41,16 @@ def _try_git_apply(patch_path: Path, cwd: Path) -> bool:
 def _try_patch_apply(patch_path: Path, cwd: Path) -> bool:
     try:
         result = subprocess.run(
-            ["patch", "-p0", "-i", str(patch_path)],
+            # -p1 strips the common "a/" and "b/" prefixes; --batch avoids interactive prompts.
+            ["patch", "-p1", "--batch", "--forward", "-i", str(patch_path)],
             cwd=cwd,
             capture_output=True,
             text=True,
+            stdin=subprocess.DEVNULL,
+            timeout=15,
         )
         return result.returncode == 0
+    except subprocess.TimeoutExpired:
+        return False
     except FileNotFoundError:
         return False

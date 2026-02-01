@@ -50,7 +50,8 @@ export async function GET(request: NextRequest) {
   }
 
   const repoRoot = findRepoRoot();
-  const pythonBin = process.env.PYTHON_BIN || path.join(repoRoot, '.venv', 'bin', 'python3');
+  const venvPython = path.join(repoRoot, '.venv', 'bin', 'python3');
+  const pythonBin = process.env.PYTHON_BIN || (existsSync(venvPython) ? venvPython : 'python3');
   const scriptPath = path.join(repoRoot, 'scripts', 'stream_audit.py');
 
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'redteam-'));
@@ -58,9 +59,9 @@ export async function GET(request: NextRequest) {
   const targetFile = path.join(tempRoot, `snippet.${extension}`);
   await writeFile(targetFile, code, 'utf-8');
 
-  const useHeuristic = !process.env.OPENAI_API_KEY;
   const args = [scriptPath, '--path', tempRoot];
-  if (useHeuristic) {
+  const heuristic = ['1', 'true', 'yes'].includes((searchParams.get('heuristic') || '').toLowerCase());
+  if (heuristic) {
     args.push('--heuristic');
   }
 
