@@ -11,7 +11,7 @@ import threading
 from typing import Any, Dict, Optional
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
@@ -34,17 +34,23 @@ app = FastAPI(title="RedTeam Auditor API", version="0.1.0")
 
 
 def _parse_cors_origins() -> list[str]:
-    raw = os.getenv("CORS_ORIGINS", "*").strip()
+    # Security: do NOT default to "*" in production. CORS is not auth, but it prevents
+    # arbitrary websites from using your backend from a browser context.
+    raw = os.getenv("CORS_ORIGINS", "").strip()
     if not raw:
-        return ["*"]
-    if raw == "*":
-        return ["*"]
-    return [o.strip() for o in raw.split(",") if o.strip()]
+        return ["http://localhost:3000", "http://127.0.0.1:3000"]
+
+    origins = [o.strip() for o in raw.split(",") if o.strip()]
+    # Explicitly disallow wildcard configurations.
+    return [o for o in origins if o != "*"]
+
+
+_ALLOWED_ORIGINS = _parse_cors_origins()
 
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_parse_cors_origins(),
+    allow_origins=_ALLOWED_ORIGINS,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -77,6 +83,27 @@ class AuditJob:
 
 _jobs: Dict[str, AuditJob] = {}
 _jobs_lock = threading.Lock()
+
+
+@app.middleware("http")
+async def enforce_origin(request: Request, call_next):
+    # Protect the backend from being driven by arbitrary websites.
+    # Note: this is still not full authentication (anyone can spoof headers),
+    # but it removes "open to the entire web" behavior for browser clients.
+    if request.method == "OPTIONS":
+        return await call_next(request)
+
+    path = request.url.path
+    if path in {"/healthz", "/docs", "/openapi.json"} or path.startswith("/docs/"):
+        return await call_next(request)
+
+    origin = request.headers.get("origin")
+    if not origin:
+        return JSONResponse({"detail": "Missing Origin header."}, status_code=403)
+    if origin not in _ALLOWED_ORIGINS:
+        return JSONResponse({"detail": f"Origin not allowed: {origin}"}, status_code=403)
+
+    return await call_next(request)
 
 
 @app.get("/healthz")
@@ -373,4 +400,3 @@ def _run_job_thread(job: AuditJob, max_rounds: int, force_heuristic: bool) -> No
         _emit(job, {"type": "done"})
     except Exception as exc:
         _emit(job, {"type": "error", "message": f"Audit failed: {exc}"})
-

@@ -17,6 +17,6 @@ services:
         value: "2000"
       - key: AUDIT_MAX_ROUNDS
         value: "6"
-      # Comma-separated list, e.g. https://your-ui.vercel.app,https://www.kyrodb.com
+      # Comma-separated list. Keep this locked to your UI domain.
       - key: CORS_ORIGINS
-        value: "*"
+        value: "https://red-team-one.vercel.app"

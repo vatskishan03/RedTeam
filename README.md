@@ -1,98 +1,89 @@
 # Adversarial Red Team Code Auditor
 
-Your code gets attacked by an AI hacker before it ships — and the fix is validated by making sure the hacker can't break it.
+Your code gets attacked by an AI hacker before it ships - and the fix is validated by making sure the hacker can't break it.
 
-## Architecture (Deployable)
+Built for OpenAI Hackathon 2026 (Track 3: Multi-Agent Systems & Workflows).
 
-- **Backend (Python)**: runs the multi-agent pipeline + streams events over SSE (Render).
-- **Frontend (Next.js)**: UI that consumes SSE and renders the 4-agent loop (Vercel).
+## Demo (2 minutes)
 
-## Quickstart
+Watch the demo video: https://drive.google.com/file/d/1-Pg42GmlLAl7GVjZ308Z4U43e7y6nhus/view?usp=sharing
 
+<p align="center">
+  <a href="https://drive.google.com/file/d/1-Pg42GmlLAl7GVjZ308Z4U43e7y6nhus/view?usp=sharing">
+    <img
+      src="https://drive.google.com/thumbnail?id=1-Pg42GmlLAl7GVjZ308Z4U43e7y6nhus&sz=w1200"
+      alt="Demo video thumbnail"
+      width="900"
+    />
+  </a>
+</p>
+
+## What It Does
+
+This repo implements a **multi-agent adversarial security audit loop**:
+
+- **Attacker (Red Team)**: finds vulnerabilities and describes concrete exploitation paths.
+- **Defender (Blue Team)**: proposes minimal patches (unified diffs) per finding.
+- **Arbiter**: validates fixes by re-attacking and checking tool signals; continues for multiple rounds until approved (or max rounds).
+- **Reporter**: generates a professional Markdown report for the final state.
+
+The key property: **fixes are validated by trying to break them again**.
+
+## Architecture
+
+- **Backend (Python + FastAPI)**: runs the pipeline and streams structured events over SSE.
+  - Entry: `src/audit/server.py` (`POST /audit/start`, `GET /audit/stream/{run_id}`)
+- **Frontend (Next.js)**: live UI consuming SSE and rendering timeline + per-agent cards.
+  - Entry: `UI/src/app/page.tsx`
+
+Run artifacts are written to `runs/<run_id>/` for debugging (ignored by git).
+
+## Local Development
+
+Backend + CLI:
 ```sh
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 # set OPENAI_API_KEY in .env
-
-# install the CLI
 pip install -e .
 
-# run the full pipeline on the demo app
+# run full pipeline on the demo app
 audit run examples/vuln_app --autofix
 ```
 
-## Local UI (Two Options)
-
-1) **All-local (dev only)**: run the UI and use the Next.js `/api/audit` route (spawns Python locally).
+UI (dev):
 ```sh
 cd UI
 npm install
 npm run dev
 ```
 
-2) **Split mode (prod-like)**: run the Python API, then point the UI to it.
+Prod-like split mode (UI -> API):
 ```sh
-# backend API
+# terminal 1: backend
 uvicorn audit.server:app --reload --host 0.0.0.0 --port 8000
 
-# UI (in a separate terminal)
+# terminal 2: UI
 cd UI
 NEXT_PUBLIC_AUDIT_API_URL=http://localhost:8000 npm run dev
 ```
 
-## CLI
+## Deployment (Render + Vercel)
 
-```sh
-# scan only
-audit scan <path>
+Backend (Render):
+- Deploy using `render.yaml`
+- Set these env vars:
+  - `OPENAI_API_KEY`
+  - `CORS_ORIGINS=https://red-team-one.vercel.app` (lock the API to your UI origin)
 
-# propose fixes (writes patch file)
-audit fix <path> --autofix
+Frontend (Vercel):
+- Root directory: `UI`
+- Env var:
+  - `NEXT_PUBLIC_AUDIT_API_URL=https://<your-render-service>.onrender.com`
 
-# verify fixes using local tools
-audit verify <path>
+## Security Notes
 
-# full pipeline
-
-audit run <path> --autofix
-
-# disable baseline comparison
-audit run <path> --no-baseline
-
-# disable post-fix reattack scan
-audit run <path> --no-reattack
-
-# heuristic-only mode (no API)
-audit run <path> --heuristic
-```
-
-## What This Does
-
-- Red Team agent finds vulnerabilities with evidence
-- Blue Team agent proposes minimal patches
-- Arbiter verifies with tools (bandit/ruff/pytest)
-- Reporter generates `REPORT.md`
-
-## Demo App
-
-See `examples/vuln_app/` for a small intentionally vulnerable project.
-
-## Demo Script
-
-- `docs/DEMO.md` for the 2-minute walkthrough
-- `scripts/demo.sh` for a quick local run
-
-## Notes
-
-- The tool writes run artifacts to `runs/`.
-- Works best on small Python codebases or the demo app.
-
-## Deploy (Render + Vercel)
-
-- **Render (backend)**: deploy the repo as a Python web service using `render.yaml`.
-  - Start command: `uvicorn audit.server:app --host 0.0.0.0 --port $PORT`
-  - Set `OPENAI_API_KEY` + (recommended) `CORS_ORIGINS` to your Vercel domain.
-- **Vercel (UI)**: deploy `UI/` as a Next.js project.
-  - Set `NEXT_PUBLIC_AUDIT_API_URL` to your Render service URL.
+- The backend enforces **Origin allowlisting** (not `*`) to prevent arbitrary websites from driving your API via browsers.
+- Never commit secrets. Use `.env` locally and Vercel/Render env vars in production.
