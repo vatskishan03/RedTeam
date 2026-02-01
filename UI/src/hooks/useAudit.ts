@@ -121,7 +121,56 @@ export function useAudit() {
         eventSourceRef.current.close();
       }
 
-      // Start SSE connection
+      const apiBase = (process.env.NEXT_PUBLIC_AUDIT_API_URL || '').replace(/\/+$/, '');
+
+      // Production: call dedicated backend (Render) via POST + SSE stream.
+      if (apiBase) {
+        const startResp = await fetch(`${apiBase}/audit/start`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code, language }),
+        });
+
+        if (!startResp.ok) {
+          const text = await startResp.text().catch(() => '');
+          throw new Error(text || `Failed to start audit (${startResp.status})`);
+        }
+
+        const startPayload = await startResp.json();
+        const runId = String(startPayload.run_id || '');
+        const streamUrl = String(startPayload.stream_url || '');
+        if (runId) runIdRef.current = runId;
+
+        const url = streamUrl.startsWith('http')
+          ? streamUrl
+          : `${apiBase}${streamUrl || `/audit/stream/${runId}`}`;
+
+        const eventSource = new EventSource(url);
+        eventSourceRef.current = eventSource;
+
+        eventSource.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            handleSSEEvent(data);
+          } catch (e) {
+            console.error('Failed to parse SSE event:', e);
+          }
+        };
+
+        eventSource.onerror = (error) => {
+          console.error('SSE connection error:', error);
+          eventSource.close();
+          setState(prev => ({
+            ...prev,
+            status: 'complete',
+            error: 'Connection lost. Please try again.',
+          }));
+        };
+
+        return;
+      }
+
+      // Local dev: use the Next.js API route that spawns the Python runner.
       const params = new URLSearchParams({ code, language });
       const eventSource = new EventSource(`/api/audit?${params.toString()}`);
       eventSourceRef.current = eventSource;

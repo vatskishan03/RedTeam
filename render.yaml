@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: redteam-auditor-api
+    env: python
+    plan: starter
+    buildCommand: pip install -e .
+    startCommand: uvicorn audit.server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-5.2
+      - key: OPENAI_TEMPERATURE
+        value: "0.2"
+      - key: OPENAI_MAX_TOKENS
+        value: "2000"
+      - key: AUDIT_MAX_ROUNDS
+        value: "6"
+      # Comma-separated list, e.g. https://your-ui.vercel.app,https://www.kyrodb.com
+      - key: CORS_ORIGINS
+        value: "*"
