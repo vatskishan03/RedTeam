@@ -36,6 +36,7 @@ def run_scan(
 
     findings: List[Finding] = []
     mode = "llm"
+    llm_error = None
     if use_heuristics or not getattr(client, "available", False):
         mode = "heuristic"
         findings = _run_heuristics(files)
@@ -43,13 +44,15 @@ def run_scan(
         try:
             agent = RedTeamAgent(client)
             findings = agent.run(code_context)
-        except Exception:
+        except Exception as exc:
             mode = "heuristic-fallback"
+            llm_error = f"scan: {exc}"
             findings = _run_heuristics(files)
 
     findings = normalize_findings(findings)
     write_json(run_paths.findings, [f.model_dump() for f in findings])
-    write_meta(run_paths, target_path, settings.model, mode)
+    extra = {"llm_error": llm_error} if llm_error else None
+    write_meta(run_paths, target_path, settings.model, mode, extra=extra)
     return run_paths, findings, code_context
 
 

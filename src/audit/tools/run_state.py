@@ -50,7 +50,13 @@ def ensure_run_dir(run_id: Optional[str] = None) -> RunPaths:
     )
 
 
-def write_meta(run_paths: RunPaths, target_path: Path, model: str, mode: str) -> None:
+def write_meta(
+    run_paths: RunPaths,
+    target_path: Path,
+    model: str,
+    mode: str,
+    extra: dict | None = None,
+) -> None:
     payload = {
         "run_id": run_paths.root.name,
         "created_at": datetime.utcnow().isoformat(),
@@ -58,4 +64,6 @@ def write_meta(run_paths: RunPaths, target_path: Path, model: str, mode: str) ->
         "model": model,
         "mode": mode,
     }
+    if extra:
+        payload.update(extra)
     run_paths.meta.write_text(json.dumps(payload, indent=2), encoding="utf-8")

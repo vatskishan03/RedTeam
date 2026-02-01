@@ -129,6 +129,8 @@ def main() -> int:
             use_heuristics = True
         if isinstance(meta, dict) and meta.get("mode"):
             agent_message("attacker", f"Scan mode: {meta['mode']}", "text")
+        if isinstance(meta, dict) and meta.get("llm_error"):
+            agent_message("attacker", f"LLM error: {meta['llm_error']}", "text")
         agent_message("attacker", f"Run ID: {run_paths.root.name}", "text")
 
         timeline("scan", "complete")
