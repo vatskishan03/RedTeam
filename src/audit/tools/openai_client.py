@@ -18,8 +18,9 @@ class OpenAIClient:
         self.error = None
         try:
             from openai import OpenAI
+            import httpx
 
-            self._client = OpenAI()
+            self._client = OpenAI(http_client=httpx.Client())
             self.available = True
         except Exception as exc:
             self.error = str(exc)

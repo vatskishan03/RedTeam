@@ -11,5 +11,7 @@ build/
 *.egg-info/
 (External) Hackathon Guide (1).pdf
 AGENTS.md
-UI/
 implementation.md
+UI/node_modules/
+UI/.next/
+UI/.env*

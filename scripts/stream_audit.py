@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 from typing import List
 
+from dotenv import load_dotenv
+
 from audit.config import settings
 from audit.contracts import Decision, Finding, Patch, VerificationResult
 from audit.flows.baseline import run_baseline
@@ -103,6 +105,7 @@ def load_reattack(run_dir: Path) -> List[Finding]:
 
 
 def main() -> int:
+    load_dotenv()
     parser = argparse.ArgumentParser()
     parser.add_argument("--path", required=True, help="Path to codebase")
     parser.add_argument("--heuristic", action="store_true")
